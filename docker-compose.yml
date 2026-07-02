@@ -30,6 +30,16 @@ services:
       - REDIS_URL=redis://redis:6379
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CHAT_AI_PROVIDER=${CHAT_AI_PROVIDER:-deepseek}
+      - CHAT_AI_API_KEY=${CHAT_AI_API_KEY:-}
+      - CHAT_AI_MODEL=${CHAT_AI_MODEL:-deepseek-chat}
+      - AUDIO_AI_PROVIDER=${AUDIO_AI_PROVIDER:-openai}
+      - AUDIO_AI_API_KEY=${AUDIO_AI_API_KEY:-}
+      - AUDIO_AI_MODEL=${AUDIO_AI_MODEL:-gpt-4o-transcribe}
+      - IMAGE_AI_PROVIDER=${IMAGE_AI_PROVIDER:-openai}
+      - IMAGE_AI_API_KEY=${IMAGE_AI_API_KEY:-}
+      - IMAGE_AI_MODEL=${IMAGE_AI_MODEL:-gpt-4o-mini}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - ADMIN_EMAIL=${ADMIN_EMAIL}

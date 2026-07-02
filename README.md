@@ -1,6 +1,6 @@
-# 🤖 Agente WhatsApp Local Multimodal con DeepSeek
+# 🤖 Agente WhatsApp Local Multimodal con DeepSeek y OpenAI
 
-Este es un agente de WhatsApp local de nivel empresarial estructurado bajo **Clean/Hexagonal Architecture** y **Spec-Driven Development (SDD)**. Utiliza la librería `@whiskeysockets/baileys` para conectarse a un número real escaneando un código QR y delega el procesamiento inteligente a la API oficial de **DeepSeek Chat**.
+Este es un agente de WhatsApp local de nivel empresarial estructurado bajo **Clean/Hexagonal Architecture** y **Spec-Driven Development (SDD)**. Utiliza la librería `@whiskeysockets/baileys` para conectarse a un número real escaneando un código QR y delega el procesamiento inteligente a proveedores de IA configurables: **DeepSeek** para chat por defecto y **OpenAI** para transcripción de audio, análisis de imágenes y, si se configura, respuestas de chat.
 
 ---
 
@@ -9,6 +9,7 @@ Este es un agente de WhatsApp local de nivel empresarial estructurado bajo **Cle
 - **Core**: Next.js 15+ (App Router) + TypeScript + React 19 (con Turbopack).
 - **Styling**: Tailwind CSS v4 Vanilla (diseño minimalista de alta gama, micro-interacciones responsivas).
 - **WhatsApp Web API**: `@whiskeysockets/baileys` v6.7+ (conexión estable a nivel protocolo, sin APIs oficiales costosas).
+- **IA configurable**: DeepSeek para chat por defecto y OpenAI compatible para chat, transcripción de audios e interpretación de imágenes.
 - **Base de Datos**: PostgreSQL (`pg` node-postgres para persistencia robusta de conversaciones, mensajes y configuración).
 - **Caché y Turnos**: Redis (`ioredis` para locks distribuidos, deduplicación de eventos y debouncing).
 - **Notificaciones**: API de Telegram (Alertas en tiempo real al dueño del bot).
@@ -23,9 +24,10 @@ Este es un agente de WhatsApp local de nivel empresarial estructurado bajo **Cle
 3. **Control por Palabras Clave del Dueño (Owner Control)**: Envía desde tu WhatsApp personal palabras clave configuradas como `bot off` (para pasar a modo `HUMAN` y suspender la IA) u `ok.` (para reactivar el modo `AI`).
 4. **Reactivación Automática tras Inactividad**: Si un operador humano interviene en una conversación y esta permanece inactiva por más de 3 días, el bot se reactivará automáticamente a modo `AI`.
 5. **Respuestas Humanizadas Segmentadas**: La IA responde en partes, aplicando retrasos inteligentes proporcionales a la longitud del texto para simular la escritura de un ser humano.
-6. **Detección Automática de Handoff**: DeepSeek analiza la conversación y delega el chat a atención humana si detecta frustración, preguntas fuera del alcance, intenciones de compra o solicitud explícita de un asesor, notificando inmediatamente al dueño por Telegram.
-7. **Seguimientos Programados (Follow-Ups)**: Tarea cron periódica inteligente que evalúa usuarios inactivos en modo `AI` tras el último mensaje de la IA, aplicando controles estrictos (evita enviar mensajes free-form fuera de la ventana de 24 horas para cumplir las políticas de WhatsApp).
-8. **CRUD de System Prompts**: Dashboard visual para alternar en tiempo real qué prompt del sistema guiará a la IA.
+6. **Detección Automática de Handoff**: El proveedor de IA configurado analiza la conversación y delega el chat a atención humana si detecta frustración, preguntas fuera del alcance, intenciones de compra o solicitud explícita de un asesor, notificando inmediatamente al dueño por Telegram.
+7. **Procesamiento Multimodal con OpenAI**: El bot puede transcribir notas de voz y describir imágenes de WhatsApp usando la API de OpenAI (`gpt-4o-transcribe`, `gpt-4o-mini` u otros modelos configurados).
+8. **Seguimientos Programados (Follow-Ups)**: Tarea cron periódica inteligente que evalúa usuarios inactivos en modo `AI` tras el último mensaje de la IA, aplicando controles estrictos (evita enviar mensajes free-form fuera de la ventana de 24 horas para cumplir las políticas de WhatsApp).
+9. **CRUD de System Prompts**: Dashboard visual para alternar en tiempo real qué prompt del sistema guiará a la IA.
 
 ---
 
@@ -36,15 +38,26 @@ La forma recomendada de desplegar el proyecto es usando **Docker Compose**, ya q
 ### 1. Requisitos Previos
 
 - Tener instalado **Docker** y **Docker Compose**.
-- Contar con una cuenta de **DeepSeek** con créditos cargados (las cuentas gratuitas están limitadas por velocidad y darán errores `429 Too Many Requests`).
+- Contar con una cuenta de **DeepSeek** con créditos cargados si se usará como proveedor de chat.
+- Contar con una API key de **OpenAI** si se habilitará transcripción de notas de voz, análisis de imágenes o chat mediante OpenAI.
 
 ### 2. Configurar Variables de Entorno
 
-Creá un archivo `.env.local` en la raíz del proyecto basándote en `.env.example`:
+Para Docker Compose, creá un archivo `.env` en la raíz del proyecto basándote en `.env.example`. Si corrés Next.js sin Docker, podés copiar los mismos valores a `.env.local`:
 
 ```bash
 DEEPSEEK_API_KEY=tu-api-key-de-deepseek
 DEEPSEEK_MODEL=deepseek-chat
+OPENAI_API_KEY=tu-api-key-de-openai
+CHAT_AI_PROVIDER=deepseek
+CHAT_AI_API_KEY=tu-api-key-de-chat
+CHAT_AI_MODEL=deepseek-chat
+AUDIO_AI_PROVIDER=openai
+AUDIO_AI_API_KEY=tu-api-key-de-openai
+AUDIO_AI_MODEL=gpt-4o-transcribe
+IMAGE_AI_PROVIDER=openai
+IMAGE_AI_API_KEY=tu-api-key-de-openai
+IMAGE_AI_MODEL=gpt-4o-mini
 DATABASE_URL=postgresql://user:password@db:5432/whatsapp_bot
 REDIS_URL=redis://redis:6379
 TELEGRAM_BOT_TOKEN=tu-bot-token-de-telegram # Opcional
@@ -52,6 +65,16 @@ TELEGRAM_CHAT_ID=tu-chat-id-de-telegram # Opcional
 ADMIN_EMAIL=tu-email-de-admin
 ADMIN_PASSWORD=tu-contrasena-segura
 ```
+
+### Proveedores de IA
+
+El proyecto permite configurar proveedores por capacidad:
+
+- `CHAT_AI_PROVIDER`: proveedor para respuestas de texto y análisis conversacional. Por defecto usa `deepseek`, pero también puede apuntar a `openai`, `google`, `minimax` o `local`.
+- `AUDIO_AI_PROVIDER`: proveedor para transcribir notas de voz. Por defecto usa `openai`.
+- `IMAGE_AI_PROVIDER`: proveedor para describir imágenes recibidas por WhatsApp. Por defecto usa `openai`.
+
+Para OpenAI podés definir una sola `OPENAI_API_KEY` como fallback global o usar claves específicas por capacidad con `CHAT_AI_API_KEY`, `AUDIO_AI_API_KEY` e `IMAGE_AI_API_KEY`. Los modelos por defecto son `gpt-4o-transcribe` para audio y `gpt-4o-mini` para imágenes/chat, pero podés cambiarlos con las variables `*_AI_MODEL`.
 
 ### 3. Levantar la Aplicación
 
