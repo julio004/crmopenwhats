@@ -1,0 +1,1411 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -512,
+        560
+      ],
+      "id": "0428cb86-c91a-4972-b9fa-675eb0f8aa9e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM (\n  SELECT *\n  FROM public.n8n_chat_histories\n  WHERE session_id = '{{ $json.session_id }}'\n  ORDER BY id DESC\n  LIMIT 10\n) AS sub\nORDER BY id ASC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1056,
+        -32
+      ],
+      "id": "abb429c3-8d2b-4384-ae6b-e4cb2e3417cd",
+      "name": "Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nitems.sort((a, b) => a.json.id - b.json.id);\n\nconst mensajesFormateados = items.map(item => {\n  const tipo = item.json.message.type;\n  const contenido = item.json.message.content;\n\n  if (tipo === 'human') {\n    return `👤 Humano: ${contenido}`;\n  } else if (tipo === 'ai') {\n    return `🤖 IA: ${contenido}`;\n  } else {\n    return `🔸 Otro: ${contenido}`;\n  }\n});\n\nreturn [\n  {\n    json: {\n      contexto_chat: mensajesFormateados.join('\\n\\n')\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -32
+      ],
+      "id": "b14d3d55-7721-48cf-b4b0-ccfb811944c8",
+      "name": "Code2",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* Trae SOLO el último mensaje de cada sesión cuyo autor sea el bot\n   y que aún tenga follow-ups pendientes (attempts < 2) */\nWITH ult AS (\n  SELECT h.*,\n         ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY id DESC) AS rn\n  FROM   public.n8n_chat_histories h\n)\nSELECT\n    id,\n    session_id,\n    message->>'content'     AS texto,\n    followup_attempts,      -- 0 ó 1\n    created_at\nFROM   ult\nWHERE  rn = 1\n  AND  message->>'type' IN ('assistant','ai','robot')\n  AND  created_at >= NOW() - INTERVAL '24 hours'  -- aún en ventana IG\n  AND  followup_attempts < 2                      -- 0 = FU-1, 1 = FU-2\n  AND  NOT EXISTS (                               -- usuario no respondió\n        SELECT 1\n        FROM   public.n8n_chat_histories h2\n        WHERE  h2.session_id = ult.session_id\n          AND  h2.id        > ult.id\n          AND  h2.message->>'type' = 'human'\n      )\nORDER  BY created_at ASC;      -- (opcional) más viejos primero\n",
+        "options": {
+          "replaceEmptyStrings": false
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -288,
+        560
+      ],
+      "id": "a87b2430-8451-40da-99ed-5c8eada02eda",
+      "name": "Postgres1",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.followup_attempts }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    },
+                    "id": "685faa97-2342-4870-b7fe-0de96073ae63"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PRIMER SEGUIMIENTO"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2f22ced1-50a9-417c-8e60-f5c0ae8b8d2f",
+                    "leftValue": "={{ $json.followup_attempts }}",
+                    "rightValue": 1,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SEGUNDO SEGUIMIENTO"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "421f951d-290e-4619-9662-4a817d4530ff",
+                    "leftValue": "={{ $json.followup_attempts }}",
+                    "rightValue": "2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "TERCER SEGUIMIENTO"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        160,
+        544
+      ],
+      "id": "a2ac6d5c-4655-4096-9e14-1bcfa2cf5c83",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        608,
+        288
+      ],
+      "id": "054399a5-08c2-41ce-bf22-d25ab2571b2a",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a6fe9975-af15-4fe8-8efe-c9c7ad8eb9a6",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "ef56298b-cb84-44c5-8e01-d08ed916e740",
+              "name": "session_id",
+              "value": "={{ $json.session_id }}",
+              "type": "string"
+            },
+            {
+              "id": "41b7d4a1-a87d-4798-8aef-7eeb30525246",
+              "name": "texto",
+              "value": "={{ $json.texto }}",
+              "type": "string"
+            },
+            {
+              "id": "291b1d83-3a5c-4575-bad3-970877490305",
+              "name": "followup_attempts",
+              "value": "={{ $json.followup_attempts }}",
+              "type": "number"
+            },
+            {
+              "id": "9a5beb19-a18c-438a-b82a-a936fb1f3b8e",
+              "name": "created_at",
+              "value": "={{ $json.created_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        48
+      ],
+      "id": "54db9fb6-d827-4fb3-94cb-3375aef07a52",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1568,
+        48
+      ],
+      "id": "ff03cf93-331c-4c82-afd7-2cc241438cd1",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "016e0e36-7083-469b-b951-108bf1408638",
+              "leftValue": "={{ $json.followup_attempts }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            },
+            {
+              "id": "0024653c-b5e2-489f-bd97-30b47534ba10",
+              "leftValue": "={{ $json.created_at }}",
+              "rightValue": "={{ $now.minus({ minutes: 10 }).toISO() }}\n\n",
+              "operator": {
+                "type": "dateTime",
+                "operation": "before"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        560
+      ],
+      "id": "f4346b5a-25f8-43a4-a7e7-e00ed9ae5509",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM (\n  SELECT *\n  FROM public.n8n_chat_histories\n  WHERE session_id = '{{ $json.session_id }}'\n  ORDER BY id DESC\n  LIMIT 10\n) AS sub\nORDER BY id ASC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        832,
+        528
+      ],
+      "id": "177ae1f5-5985-4995-ae6d-40430dda4e5f",
+      "name": "Postgres3",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nitems.sort((a, b) => a.json.id - b.json.id);\n\nconst mensajesFormateados = items.map(item => {\n  const tipo = item.json.message.type;\n  const contenido = item.json.message.content;\n\n  if (tipo === 'human') {\n    return `👤 Humano: ${contenido}`;\n  } else if (tipo === 'ai') {\n    return `🤖 IA: ${contenido}`;\n  } else {\n    return `🔸 Otro: ${contenido}`;\n  }\n});\n\nreturn [\n  {\n    json: {\n      contexto_chat: mensajesFormateados.join('\\n\\n')\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        528
+      ],
+      "id": "dcae485b-5a77-439a-b46b-77e2f8f5e564",
+      "name": "Code3",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        384,
+        672
+      ],
+      "id": "e9589ebe-5c45-42d8-adcf-0841ac1b62c0",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a6fe9975-af15-4fe8-8efe-c9c7ad8eb9a6",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "ef56298b-cb84-44c5-8e01-d08ed916e740",
+              "name": "session_id",
+              "value": "={{ $json.session_id }}",
+              "type": "string"
+            },
+            {
+              "id": "41b7d4a1-a87d-4798-8aef-7eeb30525246",
+              "name": "texto",
+              "value": "={{ $json.texto }}",
+              "type": "string"
+            },
+            {
+              "id": "291b1d83-3a5c-4575-bad3-970877490305",
+              "name": "followup_attempts",
+              "value": "={{ $json.followup_attempts }}",
+              "type": "number"
+            },
+            {
+              "id": "9a5beb19-a18c-438a-b82a-a936fb1f3b8e",
+              "name": "created_at",
+              "value": "={{ $json.created_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        608
+      ],
+      "id": "f915a778-a5b4-46fb-b901-9f1e18f463ae",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1280,
+        608
+      ],
+      "id": "37eb9fae-44ab-4d0e-b7e9-63d6f4dca534",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d61ad96f-fdc1-4c6d-990b-e15e438d4d37",
+              "leftValue": "={{ $json.message.content.respuesta }}",
+              "rightValue": "SI",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2208,
+        48
+      ],
+      "id": "6937fe96-e914-402b-80ed-3b298a4a827b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Edit Fields1').item.json.id }}",
+            "followup_attempts": 2
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_sent_at",
+              "displayName": "followup_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_attempts",
+              "displayName": "followup_attempts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2432,
+        144
+      ],
+      "id": "32b94ea4-0568-463c-9d90-fae50b740d7e",
+      "name": "Postgres5",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d825531b-ba26-4b83-82ab-6ef1b30f0627",
+              "name": "ID",
+              "value": "={{ $('Edit Fields1').item.json.session_id.replace(/^user:/, '') }}",
+              "type": "string"
+            },
+            {
+              "id": "ac035add-dddb-4130-94b7-12b96d3ef786",
+              "name": "MENSAJE",
+              "value": "={{ $json.message.content.mensaje }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2432,
+        -48
+      ],
+      "id": "fed5d7a6-d669-425b-af99-e47561feac34",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Edit Fields1').item.json.id }}",
+            "followup_attempts": 1
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_sent_at",
+              "displayName": "followup_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_attempts",
+              "displayName": "followup_attempts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2880,
+        -48
+      ],
+      "id": "88d234c2-7b58-45d2-9180-f01fca2b00dc",
+      "name": "Postgres6",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "followup_attempts": 2,
+            "id": "={{ $('Edit Fields2').item.json.id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_sent_at",
+              "displayName": "followup_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_attempts",
+              "displayName": "followup_attempts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1920,
+        608
+      ],
+      "id": "77465fe8-d125-4ac4-9eca-b73e312c85b4",
+      "name": "Postgres2",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Eres un asistente de WhatsApp/Instagram.\nDevuelve SÓLO un objeto JSON con esta estructura (sin texto extra, sin saltos antes ni después):\n\n{\n  \"respuesta\": \"SI\" | \"NO\",\n  \"mensaje\": \"...si respuesta es SI, aquí pones el follow-up en 1-2 frases...\"\n}\nObjetivo\nAnalizar toda la conversación completa y decidir si vale la pena enviar un mensaje de seguimiento breve y natural.\n\nCriterios para \"respuesta\": \"SI\"\nEl último mensaje visible para el usuario lo envió el bot y el usuario no ha contestado.\n\nQuedó una pregunta, interés, CTA o duda abierta (ej. “¿precio?”, “cuéntame más”, “me interesa, saludo”).\n\nCriterios para \"respuesta\": \"NO\"\nEl último mensaje del bot fue solo cortesía o cierre (“gracias”, “quedo atento”).\n\nEl usuario ya declinó o pidió no recibir más mensajes.\n\nReglas para \"mensaje\" (solo si \"respuesta\":\"SI\")\n1 – 2 frases, tono cercano y profesional.\n\nPuedes hacer referencia a la última pregunta o tema para sonar natural.\n\nNo uses emojis ni texto promocional agresivo; solo apoya y ofrece ayuda.\n\nEjemplos válidos:\n\n“Hola! Solo quería saber si pudiste ver los horarios disponibles para tu consulta.” \nRecuerda: responde únicamente el JSON EXACTO acorde al esquema, sin comentarios ni campos extra.”\n\n“Te escribo rapidito por si querés que te confirme el turno o te paso otros horarios.”\n\n\nPara que tengas contexto de que intento de seguimiento es te voy a dar el numero de seguimiento\n\n0 = No se le ha mandado seguimiento\n1 = Se le mando un seguimiento y no respondio aun\n\n\n**Notas de estilo y naturalidad humana\n\n(solo para guiar el tono, no incluir en la salida):**\n- **Prioridad máxima:** que suene como una persona argentina real, **no como un bot**.  \n- Usar expresiones naturales y cotidianas de Argentina (vos, podés, querés, acá, dale, te leo, tranqui, etc.).  \n- Evitar frases neutras o robóticas como:  \n  - “Estoy aquí para ayudarte.” → usar “Estoy acá para darte una mano.” o “Cualquier cosa, escribime.”  \n  - “¿En qué puedo ayudarte hoy?” → usar “¿Querés que te dé una mano con algo?” o “Contame qué necesitás.”  \n- Usar **una sola interrogación** (“?” al final), nunca el signo invertido inicial “¿”.  \n- No usar puntuación perfecta ni tono corporativo; que suene como un chat de WhatsApp real.  \n- Se permiten muletillas o frases naturales: “dale”, “ok”, “perfecto”, “genial”, “te leo”, “sin drama”.  \n- Siempre usar **“vos”**, no “tú”.  \n- Si el mensaje ofrece ayuda o seguimiento, que suene espontáneo y cálido:  \n  - “Avisame si querés que te lo mande.”  \n  - “Decime si querés que te pase la info.”  \n  - “Si te quedó alguna duda, escribime tranqui.”  \n- El objetivo es que quien lea el mensaje piense que lo escribió **una persona real de la clínica**, no un sistema.",
+              "role": "system"
+            },
+            {
+              "content": "=Conversación Completa:  {{ $json.contexto_chat }}\n\nNúmero de seguimiento: {{ $json.followup_attempts }}"
+            }
+          ]
+        },
+        "simplify": "={{ true }}",
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1856,
+        48
+      ],
+      "id": "034a6ba5-406d-477d-8180-4beaf9637ff3",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "e5dsruncVJJGq868",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "745124715361407",
+        "recipientPhoneNumber": "={{ $json.ID }}",
+        "textBody": "={{ $json.MENSAJE }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        2656,
+        -48
+      ],
+      "id": "b78c9bd2-6182-446a-8989-69d3c4013fb5",
+      "name": "Send message",
+      "webhookId": "2eefa854-eaf6-4d6a-aadd-79a451aeb79e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "sydDiADGYkUKmJxQ",
+          "name": "Mati valenzuela"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "followup_attempts": 0,
+            "message": "={\n  \"type\": \"ai\",\n  \"content\": \"{{ $('Edit Fields3').item.json.MENSAJE }}\",\n  \"tool_calls\": [],\n  \"additional_kwargs\": {},\n  \"response_metadata\": {},\n  \"invalid_tool_calls\": []\n}",
+            "session_id": "={{ $json.session_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_sent_at",
+              "displayName": "followup_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_attempts",
+              "displayName": "followup_attempts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3120,
+        16
+      ],
+      "id": "ef5b1091-004c-4bc2-be2a-975a695d5c6d",
+      "name": "Cargar primer mensaje de seguimiento",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": 0,
+            "followup_attempts": 0,
+            "message": "={\n  \"type\": \"ai\",\n  \"content\": \"{{ $('Edit Fields3').item.json.MENSAJE }}\",\n  \"tool_calls\": [],\n  \"additional_kwargs\": {},\n  \"response_metadata\": {},\n  \"invalid_tool_calls\": []\n}",
+            "session_id": "={{ $json.session_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_sent_at",
+              "displayName": "followup_sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "followup_attempts",
+              "displayName": "followup_attempts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2448,
+        640
+      ],
+      "id": "3f1c8b15-2fcb-4d6c-acd0-9313486269b9",
+      "name": "Cargar primer mensaje de seguimiento1",
+      "credentials": {
+        "postgres": {
+          "id": "OAquvjJpGOcodhE4",
+          "name": "postgress Mati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Eres un asistente especializado en el segundo seguimiento para mensajes de Instagram/WhatsApp.\nDevuelve EXCLUSIVAMENTE un objeto JSON con este formato (sin ningún texto adicional):\n\n\n{\n  \"respuesta\": \"SI\" | \"NO\",\n  \"mensaje\": \"…solo si respuesta es SI, redacta aquí de 1-2 frases…\"\n}\n\nCriterios para \"respuesta\": \"SI\"\nhoras_desde_usuario ≤ 24 (seguimos dentro de la ventana de 24 h).\n\nEl usuario no ha respondido después de FU-1.\n\nEl mensaje anterior del bot (FU-1) dejó clara la invitación a continuar, pero quedó sin respuesta o con una pregunta abierta, saludo de bienvenida.\n\nCriterios para \"respuesta\": \"NO\"\nEl usuario respondió tras FU-1 o indicó que no desea más mensajes.\n\nhoras_desde_usuario > 24 (fuera de la ventana) o horas_desde_fu1 < 17 (aún es pronto).\n\nSe detecta desinterés (“gracias”, “no me interesa”, silencio tras rechazo).\n\nReglas para el campo \"mensaje\" (solo si \"respuesta\" = \"SI\")\n1-2 frases, tono cordial y breve.\n\nRefuerza la idea de que la ventana de 24 h está por cerrar (“antes de que se cierre el chat…”).\n\nMenciona de forma natural el tema pendiente: tratamiento, agedamiento, precio, etc.\n\nCero emojis y nada agresivo; solo útil y cercano.\n\nEjemplos de mensajes válidos\n\n“Paso rápido para ver si aún quieres avanzar; si necesitas algo más, dime y con gusto te ayudo.”\n\nIMPORTANTE: responde exactamente el JSON solicitado. No añadas comentarios, campos extra ni texto fuera del objeto JSON.\n\n**Notas de estilo y naturalidad humana\n\n(solo para guiar el tono, no incluir en la salida):**\n- **Prioridad máxima:** que suene como una persona argentina real, **no como un bot**.  \n- Usar expresiones naturales y cotidianas de Argentina (vos, podés, querés, acá, dale, te leo, tranqui, etc.).  \n- Evitar frases neutras o robóticas como:  \n  - “Estoy aquí para ayudarte.” → usar “Estoy acá para darte una mano.” o “Cualquier cosa, escribime.”  \n  - “¿En qué puedo ayudarte hoy?” → usar “¿Querés que te dé una mano con algo?” o “Contame qué necesitás.”  \n- Usar **una sola interrogación** (“?” al final), nunca el signo invertido inicial “¿”.  \n- No usar puntuación perfecta ni tono corporativo; que suene como un chat de WhatsApp real.  \n- Se permiten muletillas o frases naturales: “dale”, “ok”, “perfecto”, “genial”, “te leo”, “sin drama”.  \n- Siempre usar **“vos”**, no “tú”.  \n- Si el mensaje ofrece ayuda o seguimiento, que suene espontáneo y cálido:  \n  - “Avisame si querés que te lo mande.”  \n  - “Decime si querés que te pase la info.”  \n  - “Si te quedó alguna duda, escribime tranqui.”  \n- El objetivo es que quien lea el mensaje piense que lo escribió **una persona real de la clínica**, no un sistema.\n\n",
+              "role": "system"
+            },
+            {
+              "content": "=Conversación Completa:  {{ $json.contexto_chat }}\n\nNúmero de seguimiento: {{ $json.followup_attempts }}\n\nHoras transcurridas desde el primer follow-up (FU-1): 6\n\nNúmero de intentos previos (followup_attempts): 1"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1504,
+        608
+      ],
+      "id": "9f999665-9e31-4898-9ef9-11c9ddf64e67",
+      "name": "Message a model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "e5dsruncVJJGq868",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "745124715361407",
+        "recipientPhoneNumber": "={{ $json.session_id }}",
+        "textBody": "={{ $('Message a model1').item.json.message.content.mensaje }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        2176,
+        544
+      ],
+      "id": "1acb4017-3ff6-4143-b1f0-0029d5fc6f3d",
+      "name": "Send message1",
+      "webhookId": "2eefa854-eaf6-4d6a-aadd-79a451aeb79e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "sydDiADGYkUKmJxQ",
+          "name": "Mati valenzuela"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Postgres1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres1": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Postgres",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres3": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Postgres3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres5": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres6": {
+      "main": [
+        [
+          {
+            "node": "Cargar primer mensaje de seguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres2": {
+      "main": [
+        [
+          {
+            "node": "Send message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message": {
+      "main": [
+        [
+          {
+            "node": "Postgres6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar primer mensaje de seguimiento": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar primer mensaje de seguimiento1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Postgres2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message1": {
+      "main": [
+        [
+          {
+            "node": "Cargar primer mensaje de seguimiento1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "timestamp": "2025-10-30T15:05:25.356-03:00",
+        "Readable date": "October 30th 2025, 3:05:25 pm",
+        "Readable time": "3:05:25 pm",
+        "Day of week": "Thursday",
+        "Year": "2025",
+        "Month": "October",
+        "Day of month": "30",
+        "Hour": "15",
+        "Minute": "05",
+        "Second": "25",
+        "Timezone": "America/Argentina/Buenos_Aires (UTC-03:00)"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bf8b21c52d5d27b39876156cf8a1f19462d79e1c4909daaa729479e62f901080"
+  }
+}

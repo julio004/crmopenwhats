@@ -1,0 +1,15 @@
+# Local Pi runtime state
+.atl/
+.pi/
+.env
+wa/
+# Dependencies and build output
+node_modules/
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# Runtime data
+data/
+/auth/
+.env.local

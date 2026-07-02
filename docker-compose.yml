@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: whatsapp_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: whatsapp_bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: whatsapp_redis_cache
+    restart: always
+    volumes:
+      - redisdata:/data
+
+  app:
+    build: .
+    container_name: whatsapp_bot_app
+    restart: always
+    depends_on:
+      - db
+      - redis
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://user:password@db:5432/whatsapp_bot
+      - REDIS_URL=redis://redis:6379
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - WHATSAPP_AUTH_DIR=/app/auth
+      - BOT_DATA_DIR=/app/data
+      - LOG_LEVEL=${LOG_LEVEL:-warn}
+    volumes:
+      - whatsapp_auth:/app/auth
+      - bot_data:/app/data
+      - whatsapp_media:/app/public/media
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+  whatsapp_auth:
+    driver: local
+  bot_data:
+    driver: local
+  whatsapp_media:
+    driver: local

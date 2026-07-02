@@ -1,0 +1,24 @@
+services:
+  app:
+    ports:
+      - "3000:3000"
+    environment:
+      - DEV_FOLLOWUP_POLL_INTERVAL_MS=${DEV_FOLLOWUP_POLL_INTERVAL_MS}
+      - DEV_FOLLOWUP_MIN_AGE_SECONDS=${DEV_FOLLOWUP_MIN_AGE_SECONDS}
+    # Si querés desarrollar en tiempo real sin tener que reconstruir la imagen en cada cambio,
+    # podés descomentar las siguientes líneas para montar tu código local y usar el modo dev:
+    # environment:
+    #   - NODE_ENV=development
+    # command: npm run dev
+    # volumes:
+    #   - .:/app
+    #   - /app/node_modules
+    #   - /app/.next
+
+  db:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"

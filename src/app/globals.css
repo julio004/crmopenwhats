@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-on-secondary: var(--on-secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
+  
+  --color-tertiary: var(--tertiary);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-on-tertiary-container: var(--on-tertiary-container);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  
+  --font-display: "Outfit", sans-serif;
+  --font-sans: "Inter", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --radius: 0.75rem;
+
+  --background: #0F171D;
+  --foreground: #F4F7F8;
+
+  --primary: #00A884;
+  --primary-foreground: #111B21;
+  --on-primary: #111B21;
+  --primary-container: #00A884;
+  --on-primary-container: #ffffff;
+
+  --secondary: #273842;
+  --secondary-foreground: #ffffff;
+  --on-secondary: #ffffff;
+  --secondary-container: #334650;
+  --on-secondary-container: #ffffff;
+
+  --tertiary: #ffb3af;
+  --on-tertiary: #650911;
+  --tertiary-container: #fc7c78;
+  --on-tertiary-container: #711419;
+
+  --surface: #17232B;
+  --surface-dim: #0C1419;
+  --surface-bright: #263842;
+  --surface-container-lowest: #111B21;
+  --surface-container-low: #17232B;
+  --surface-container: #1F3039;
+  --surface-container-high: #2B3F49;
+  --surface-container-highest: #3A515D;
+  --on-surface: #F4F7F8;
+  --on-surface-variant: #A7B4BD;
+
+  --outline: #31424D;
+  --outline-variant: #3B515E;
+  --error: #EF4444;
+  --on-error: #ffffff;
+  --error-container: #7f1d1d;
+  --on-error-container: #fca5a5;
+
+  --card: #17232B;
+  --card-foreground: #F4F7F8;
+  --popover: #17232B;
+  --popover-foreground: #F4F7F8;
+  --muted: #243640;
+  --muted-foreground: #A7B4BD;
+  --accent: #334650;
+  --accent-foreground: #F4F7F8;
+  --destructive: #EF4444;
+  --destructive-foreground: #ffffff;
+  --border: #31424D;
+  --input: #334650;
+  --ring: #00A884;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+}
+
+.glass-panel {
+  background: #17232B;
+  border: 1px solid #31424D;
+  border-radius: 12px;
+}
+
+.glow-active {
+  box-shadow: none;
+}
+
+/* Custom thin scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 168, 132, 0.4);
+}
